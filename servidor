@@ -3,10 +3,6 @@ import asyncio
 import re
 from tcp import Servidor
 
-# Garante o event loop no Python 3.14+
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
-
 # Dicionários globais de estado
 USUARIOS = {}  # apelido_lower -> conexao
 CANAIS = {}    # canal_lower -> set(conexao1, conexao2, ...)
@@ -33,7 +29,10 @@ def conexao_fechada(conexao):
     if apelido:
         msg_quit = f":{apelido} QUIT :Connection closed\r\n"
         for membro in membros_notificar:
-            membro.enviar(msg_quit.encode('utf-8'))
+            try:
+                membro.enviar(msg_quit.encode('utf-8'))
+            except Exception:
+                pass
 
         apelido_lower = apelido.lower()
         if apelido_lower in USUARIOS and USUARIOS[apelido_lower] == conexao:
@@ -183,4 +182,6 @@ def conexao_aceita(conexao):
 
 servidor = Servidor(6667)
 servidor.registrar_monitor_de_conexoes_aceitas(conexao_aceita)
-asyncio.get_event_loop().run_forever()
+
+if __name__ == '__main__':
+    asyncio.get_event_loop().run_forever()
