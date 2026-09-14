@@ -127,23 +127,60 @@ def dados_recebidos(conexao, dados):
                 conexao.enviar(r_353.encode('utf-8'))
                 conexao.enviar(r_366.encode('utf-8'))
       
+    #passo 7: PART (Sair do canal)
+    elif texto.startswith('PART'):
+        partes = texto.split(' ', 1)
+        if len(partes) > 1:
+            canal = partes[1].split()[0]
+            canal_lower = canal.lower()
+            
+            if canal_lower in CANAIS and conexao in CANAIS[canal_lower]:
+                apelido = getattr(conexao, 'apelido', '*')
+                msg_part = f":{apelido} PART {canal}\r\n"
+                
+                # Transmite para todos os membros do canal
+                for membro in list(CANAIS[canal_lower]):
+                    membro.enviar(msg_part.encode('utf-8'))
+                
+                # Remove a conexão do canal
+                CANAIS[canal_lower].remove(conexao)
+                if hasattr(conexao, 'canais') and canal_lower in conexao.canais:
+                    conexao.canais.remove(canal_lower)
+
+   def conexao_fechada(conexao):
+     print(conexao, 'conexão fechada')
+    
+    apelido = getattr(conexao, 'apelido', None)
+    membros_notificar = set()
+
+    # Passo 10: Remover o usuário de todos os canais
+    for canal_lower, membros in list(CANAIS.items()):
+        if conexao in membros:
+            membros.remove(conexao)
+            membros_notificar.update(membros)
+
+    # Passo 8: Notificar QUIT aos usuários em canais em comum
+    if apelido:
+        msg_quit = f":{apelido} QUIT :Connection closed\r\n"
+        for membro in membros_notificar:
+            membro.enviar(msg_quit.encode('utf-8'))
+
+        # Passo 10: Remover apelido do dicionário global
+        apelido_lower = apelido.lower()
+        if apelido_lower in USUARIOS and USUARIOS[apelido_lower] == conexao:
+            del USUARIOS[apelido_lower]
+
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
 
-    # Note que, no Python, atributos NÃO precisam ser previamente declarados na classe!
-    # Se precisar, esta função é o melhor local para adicionar novos atributos ao objeto conexao.
-    #
-    # Por exemplo, para armazenar o nick do usuário:
-    conexao.nick = b'*'
-
-    # Fique à vontade para adicionar mais atributos, se necessário.
-
     conexao.registrar_recebedor(dados_recebidos)
-
+    conexao.registrar_fechado(conexao_fechada)
 
 servidor = Servidor(6667)
 servidor.registrar_monitor_de_conexoes_aceitas(conexao_aceita)
 asyncio.get_event_loop().run_forever()
+
+loop.run_forever()
 
 
 loop.run_forever()
