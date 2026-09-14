@@ -2,11 +2,11 @@
 import asyncio
 import re
 from tcp import Servidor
-# Garante o event loop no Python 3.14+
+#Garante o event loop no Python 3.14+
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
-# Dicionário global para mapear apelido (em minúsculas) -> objeto conexao
+#Dicionário global para mapear apelido (em minúsculas) -> objeto conexao
 USUARIOS = {}
 CANAIS = {}  # canal_lower -> set(conexao1, conexao2, ...)
 
@@ -26,14 +26,14 @@ def dados_recebidos(conexao, dados):
         linha, conexao.buffer = conexao.buffer.split(b'\r\n', 1)
         texto = linha.decode('utf-8', errors='ignore').strip()
 
-        # Passo 1 & 2: PING
+        #Passo 1 & 2: PING
         if texto.startswith('PING'):
             partes = texto.split(' ', 1)
             payload = partes[1] if len(partes) > 1 else ''
             resposta = f":server PONG server :{payload}\r\n"
             conexao.enviar(resposta.encode('utf-8'))
 
-        # Passo 3 & 4: NICK
+        #Passo 3 & 4: NICK
         elif texto.startswith('NICK'):
             partes = texto.split(' ', 1)
             apelido = partes[1] if len(partes) > 1 else ''
@@ -62,7 +62,7 @@ def dados_recebidos(conexao, dados):
                     conexao.apelido = apelido
                     USUARIOS[apelido_lower] = conexao
 
-                 # Passo 5: PRIVMSG (Direto ou Canal)
+        #Passo 5: PRIVMSG (Direto ou Canal)
         elif texto.startswith('PRIVMSG'):
             partes = texto.split(' ', 2)
             if len(partes) >= 3:
@@ -90,7 +90,7 @@ def dados_recebidos(conexao, dados):
                     resposta = f":{remetente} PRIVMSG {destinatario} {mensagem}\r\n"
                     conexao_destino.enviar(resposta.encode('utf-8'))
 
-        # Passo 6: JOIN
+        #Passo 6: JOIN
         elif texto.startswith('JOIN'):
             partes = texto.split(' ', 1)
             canal = partes[1] if len(partes) > 1 else ''
@@ -159,7 +159,7 @@ def dados_recebidos(conexao, dados):
             membros.remove(conexao)
             membros_notificar.update(membros)
 
-    # Passo 8: Notificar QUIT aos usuários em canais em comum
+    #Passo 8: Notificar QUIT aos usuários em canais em comum
     if apelido:
         msg_quit = f":{apelido} QUIT :Connection closed\r\n"
         for membro in membros_notificar:
