@@ -64,7 +64,7 @@ def enviar_lista_nomes(conexao, prefixo, nomes):
 
 
 
-#Passo 3 e 4 — NICK (definir apelido inicial e trocar de apelido)
+#Passo 3 e 4 — NICK(definir apelido inicial e trocar de apelido)
 
 def tratar_nick(conexao, args):
     if not args:
@@ -72,13 +72,13 @@ def tratar_nick(conexao, args):
     novo = args[0]
     apelido_atual = getattr(conexao, 'apelido', None)
 
-    #Passo 3: validação do formato do apelido
+    #Passo 3:validação do formato do apelido
     if not validar_nome(novo):
         atual_str = decode(apelido_atual) if apelido_atual else '*'
         enviar(conexao, f":server 432 {atual_str} {decode(novo)} :Erroneous nickname")
         return
 
-    #Passo 4: verificação de apelido duplicado 
+    #Passo 4:verificação de apelido duplicado 
     novo_lower = novo.lower()
     if novo_lower in apelidos and apelidos[novo_lower] is not conexao:
         atual_str = decode(apelido_atual) if apelido_atual else '*'
