@@ -9,14 +9,13 @@ def validar_nome(nome):
     return re.match(br'^[a-zA-Z][a-zA-Z0-9_-]*$', nome) is not None
 
 
-# =============================================================================
-# Estado global do servidor
-# =============================================================================
-# Usado a partir do Passo 4 (apelidos) e Passo 6 em diante (canais).
-conexoes = set()                 # todas as conexões ativas
-apelidos = {}                    # apelido (minúsculo) -> Conexao          [Passo 4]
-canais = {}                      # nome do canal (minúsculo) -> {apelido_min: Conexao}   [Passo 6]
-canal_nome_original = {}         # nome do canal (minúsculo) -> nome do canal como foi criado
+
+#estado global do servidor
+#usado a partir do Passo 4 (apelidos) e passo 6 em diante (canais)
+conexoes = set()                 
+apelidos = {}                    
+canais = {}                      
+canal_nome_original = {}         
 
 
 def decode(b):
@@ -27,9 +26,9 @@ def enviar(conexao, linha):
     try:
         conexao.enviar((linha + '\r\n').encode())
     except OSError:
-        # O outro lado já fechou a conexão abruptamente; ignoramos o erro
-        # aqui, pois o próprio recv() vai detectar o fechamento em seguida
-        # e disparar a limpeza (sair) normalmente.
+        #O outro lado já fechou a conexão abruptamente, ignoramos o erro
+        #aqui, pois o próprio recv() vai detectar o fechamento em seguida
+        #e disparar a limpeza (sair) normalmente.
         pass
 
 
@@ -64,22 +63,22 @@ def enviar_lista_nomes(conexao, prefixo, nomes):
     enviar(conexao, atual)
 
 
-# =============================================================================
-# Passo 3 e 4 — NICK (definir apelido inicial e trocar de apelido)
-# =============================================================================
+
+#Passo 3 e 4 — NICK (definir apelido inicial e trocar de apelido)
+
 def tratar_nick(conexao, args):
     if not args:
         return
     novo = args[0]
     apelido_atual = getattr(conexao, 'apelido', None)
 
-    # --- Passo 3: validação do formato do apelido -> erro 432 ---
+    #Passo 3: validação do formato do apelido
     if not validar_nome(novo):
         atual_str = decode(apelido_atual) if apelido_atual else '*'
         enviar(conexao, f":server 432 {atual_str} {decode(novo)} :Erroneous nickname")
         return
 
-    # --- Passo 4: verificação de apelido duplicado -> erro 433 ---
+    #Passo 4: verificação de apelido duplicado 
     novo_lower = novo.lower()
     if novo_lower in apelidos and apelidos[novo_lower] is not conexao:
         atual_str = decode(apelido_atual) if apelido_atual else '*'
@@ -87,26 +86,26 @@ def tratar_nick(conexao, args):
         return
 
     if apelido_atual is None:
-        # --- Passo 3: registro inicial bem-sucedido -> mensagens 001 e 422 ---
+        #passo 3: registro inicial bem-sucedido 
         conexao.apelido = novo
         conexao.canais = getattr(conexao, 'canais', set())
         apelidos[novo_lower] = conexao
         enviar(conexao, f":server 001 {decode(novo)} :Welcome")
         enviar(conexao, f":server 422 {decode(novo)} :MOTD File is missing")
     else:
-        # --- Passo 4: troca de apelido de quem já estava registrado ---
+        #passo 4: troca de apelido de quem já estava registrado 
         del apelidos[apelido_atual.lower()]
         conexao.apelido = novo
         apelidos[novo_lower] = conexao
 
-        # Atualiza as listas de membros dos canais em que ele está
+        #Atualiza as listas de membros dos canais em que ele está
         for canal_lower in getattr(conexao, 'canais', set()):
             membros = canais.get(canal_lower)
             if membros is not None:
                 membros.pop(apelido_atual.lower(), None)
                 membros[novo_lower] = conexao
 
-        # Avisa o próprio usuário e quem compartilha canal com ele
+        #Avisa o próprio usuário e quem compartilha canal com ele
         msg = f":{decode(apelido_atual)} NICK {decode(novo)}"
         destinatarios = usuarios_relacionados(conexao)
         destinatarios.add(conexao)
@@ -114,9 +113,9 @@ def tratar_nick(conexao, args):
             enviar(c, msg)
 
 
-# =============================================================================
-# Passo 5 — PRIVMSG (mensagem privada para usuário ou canal)
-# =============================================================================
+
+#passo 5 — PRIVMSG(mensagem privada para usuário ou canal)
+
 def tratar_privmsg(conexao, args):
     if not hasattr(conexao, 'apelido') or len(args) < 2:
         return
@@ -125,7 +124,7 @@ def tratar_privmsg(conexao, args):
     msg = f":{decode(conexao.apelido)} PRIVMSG {decode(destino)} :{decode(conteudo)}"
 
     if destino.startswith(b'#'):
-        # --- Passo 6: mensagem para canal (reaproveitado aqui) ---
+        #Passo 6: mensagem para canal (reaproveitado aqui) 
         membros = canais.get(destino_lower)
         if not membros:
             return
@@ -133,21 +132,21 @@ def tratar_privmsg(conexao, args):
             if c is not conexao:
                 enviar(c, msg)
     else:
-        # --- Passo 5: mensagem direta para outro usuário ---
+        #Passo 5: mensagem direta para outro usuário 
         alvo = apelidos.get(destino_lower)
         if alvo:
             enviar(alvo, msg)
 
 
-# =============================================================================
-# Passo 6 e 9 — JOIN (entrar em canal + lista de membros)
-# =============================================================================
+
+#passo 6 e 9 — JOIN (entrar em canal + lista de membros)
+
 def tratar_join(conexao, args):
     if not hasattr(conexao, 'apelido') or not args:
         return
     canal = args[0]
 
-    # --- Passo 6: validação do nome do canal -> erro 403 ---
+    #passo 6: validação do nome do canal 
     if not (canal.startswith(b'#') and validar_nome(canal[1:])):
         enviar(conexao, f":server 403 {decode(canal)} :No such channel")
         return
@@ -158,7 +157,7 @@ def tratar_join(conexao, args):
         canal_nome_original[canal_lower] = canal
     canal_exibicao = canal_nome_original[canal_lower]
 
-    # --- Passo 6: adiciona o usuário ao canal e avisa todo mundo ---
+    #passo 6: adiciona o usuário ao canal e avisa todo mundo 
     membros = canais[canal_lower]
     membros[conexao.apelido.lower()] = conexao
     conexao.canais = getattr(conexao, 'canais', set())
@@ -168,16 +167,16 @@ def tratar_join(conexao, args):
     for c in membros.values():
         enviar(c, msg_join)
 
-    # --- Passo 9: envia a lista de membros (353) e o fim da lista (366) ---
+    #passo 9: envia a lista de membros (353) e o fim da lista (366)
     nomes = sorted((c.apelido.decode() for c in membros.values()), key=str.lower)
     prefixo = f":server 353 {decode(conexao.apelido)} = {decode(canal_exibicao)} :"
     enviar_lista_nomes(conexao, prefixo, nomes)
     enviar(conexao, f":server 366 {decode(conexao.apelido)} {decode(canal_exibicao)} :End of /NAMES list.")
 
 
-# =============================================================================
-# Passo 7 — PART (sair de um canal)
-# =============================================================================
+
+#passo 7 — PART (sair de um canal)
+
 def tratar_part(conexao, args):
     if not hasattr(conexao, 'apelido') or not args:
         return
@@ -199,15 +198,15 @@ def tratar_part(conexao, args):
         canal_nome_original.pop(canal_lower, None)
 
 
-# =============================================================================
-# Passo 1 — PING (e despachante de comandos para os demais passos)
-# =============================================================================
+
+#passo 1 — PING(e despachante de comandos para os demais passos)
+
 def processar_linha(conexao, linha):
     partes = linha.split(b' ')
     comando = partes[0].upper()
 
-    # Faz o parsing dos parâmetros no estilo IRC: o último parâmetro pode
-    # começar com ':' e conter espaços.
+    #faz o parsing dos parâmetros no estilo IRC: o ultimo parâmetro pode
+    #começar com ':' e conter espaços.
     args = []
     i = 1
     while i < len(partes):
@@ -219,32 +218,32 @@ def processar_linha(conexao, linha):
         i += 1
 
     if comando == b'PING':
-        # --- Passo 1: responde PING com PONG ---
+        #passo 1: responde PING com PONG 
         payload = args[0] if args else b''
         enviar(conexao, f":server PONG server :{decode(payload)}")
     elif comando == b'NICK':
-        tratar_nick(conexao, args)          # Passos 3 e 4
+        tratar_nick(conexao, args)          #Passos 3 e 4
     elif comando == b'PRIVMSG':
-        tratar_privmsg(conexao, args)       # Passo 5 (e 6)
+        tratar_privmsg(conexao, args)       #Passo 5 (e 6)
     elif comando == b'JOIN':
-        tratar_join(conexao, args)          # Passos 6 e 9
+        tratar_join(conexao, args)          #Passos 6 e 9
     elif comando == b'PART':
-        tratar_part(conexao, args)          # Passo 7
+        tratar_part(conexao, args)          #Passo 7
 
 
-# =============================================================================
-# Passo 8 e 10 — QUIT / limpeza ao desconectar
-# =============================================================================
+
+#passo 8 e 10 — QUIT /limpeza ao desconectar
+
 def sair(conexao):
     apelido = getattr(conexao, 'apelido', None)
     if apelido:
-        # --- Passo 8: avisa QUIT para quem compartilha canal com o usuário ---
+        #Passo 8: avisa QUIT para quem compartilha canal com o usuário
         relacionados = usuarios_relacionados(conexao)
         msg = f":{decode(apelido)} QUIT :Connection closed"
         for c in relacionados:
             enviar(c, msg)
 
-        # --- Passo 10: remove o usuário de todos os canais em que estava ---
+        #passo 10: remove o usuário de todos os canais em que estava
         for canal_lower in list(getattr(conexao, 'canais', set())):
             membros = canais.get(canal_lower)
             if membros is not None:
@@ -259,28 +258,28 @@ def sair(conexao):
     conexao.fechar()
 
 
-# =============================================================================
-# Passo 2 — Recebimento de dados fragmentados / múltiplas mensagens
-# =============================================================================
+
+#passo 2 — Recebimento de dados fragmentados /múltiplas mensagens
+
 def dados_recebidos(conexao, dados):
     if not dados:
-        # Conexão fechada pelo cliente -> aciona a limpeza (Passos 8 e 10)
+        #Conexão fechada pelo cliente -> aciona a limpeza (Passos 8 e 10)
         sair(conexao)
         return
 
-    # --- Passo 2: junta com o residual da última leitura e separa por linha ---
+    #Passo 2: junta com o residual da última leitura e separa por linha
     buffer = getattr(conexao, 'residual', b'') + dados
     linhas = buffer.split(b'\r\n')
-    conexao.residual = linhas[-1]   # pedaço incompleto fica para a próxima leitura
+    conexao.residual = linhas[-1]   #pedaço incompleto fica para a próxima leitura
 
     for linha in linhas[:-1]:
         if linha:
             processar_linha(conexao, linha)
 
 
-# =============================================================================
-# Passo 1 — Aceitação de novas conexões e início do servidor
-# =============================================================================
+
+#Passo 1 — Aceitação de novas conexões e início do servidor
+
 def conexao_aceita(conexao):
     conexoes.add(conexao)
     conexao.residual = b''
